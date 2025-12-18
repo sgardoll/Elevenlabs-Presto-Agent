@@ -11,6 +11,8 @@ except ImportError:
 
 # --- CONFIGURATION ---
 AGENT_PORT = 8080
+POLL_INTERVAL = 3000
+NETWORK_TIMEOUT = 3 
 
 # --- SETUP ---
 p = Presto()
@@ -26,7 +28,6 @@ GRAY  = display.create_pen(100, 100, 100)
 BLUE  = display.create_pen(0, 100, 255)
 
 BASE_URL = "http://{}:{}".format(AGENT_SERVER_IP, AGENT_PORT)
-current_state = "init"
 
 def draw_ui(state, message=""):
     display.set_pen(BLACK)
@@ -86,59 +87,51 @@ def connect_wifi():
 
 def get_server_status():
     try:
-        # Fast timeout to prevent locking up
-        response = urequests.get(BASE_URL + "/status", timeout=1)
+        response = urequests.get(BASE_URL + "/status", timeout=NETWORK_TIMEOUT)
         data = response.json()
         response.close()
         return data.get("sessionState", "offline")
     except Exception as e:
-        # print("Status error:", e) # Uncomment to debug
+        # print("Status error:", e) 
         return "offline"
 
 def send_toggle(target_state):
     endpoint = "/stop" if target_state in ["listening", "started"] else "/start"
     try:
-        urequests.post(BASE_URL + endpoint, timeout=1).close()
+        urequests.post(BASE_URL + endpoint, timeout=NETWORK_TIMEOUT).close()
     except Exception as e:
         print("Toggle error:", e)
 
 def main():
-    global current_state
-    
     # 1. Draw immediately to prove screen works
     draw_ui("init", "Booting...")
     time.sleep(1)
     
-    # 2. Connect
-    if not connect_wifi():
-        draw_ui("offline", "WiFi Failed")
-        return 
+    # 2. Connect with Retry
+    while not connect_wifi():
+        draw_ui("offline", "WiFi Failed. Retrying...")
+        time.sleep(3)
 
     # 3. Main Loop
     current_state = "offline" 
     last_poll = 0
-    POLL_INTERVAL = 3000 
     
     while True:
-        gc.collect() 
-        
         # --- FIXED TOUCH LOGIC ---
-        # 1. Ask the driver to poll hardware
         p.touch.poll()
         
-        # 2. Check if the state is strictly TRUE (The click event)
-        if p.touch.state == True:
+        if p.touch.state:
             print("Touched!")
             
-            # Visual Feedback
+            # Visual Feedback FIRST
             draw_ui(current_state, "Sending command...")
             
             # Send Command
             send_toggle(current_state)
             
-            # Debounce: Wait for finger to lift (State becomes False)
-            while p.touch.state == True:
-                p.touch.poll() # Keep updating to detect release
+            # Debounce
+            while p.touch.state:
+                p.touch.poll() 
                 time.sleep(0.1)
                 
             # Force immediate refresh
@@ -152,10 +145,11 @@ def main():
             if new_state != current_state:
                 current_state = new_state
                 draw_ui(current_state, f"State: {current_state}")
+                gc.collect() # Only collect garbage on state change
             
             last_poll = now
             
-        time.sleep(0.02)
+        time.sleep(0.05)
 
 if __name__ == "__main__":
     main()
