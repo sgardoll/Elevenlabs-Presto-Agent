@@ -46,6 +46,8 @@ app.post("/start", async (req, res) => {
       sessionState = "listening";
       console.log("WebSocket opened.");
 
+      wsClient.send(JSON.stringify({ type: "conversation_initiation_client_data" }));
+
       speaker = new Speaker({
         channels: 1,
         bitDepth: 16,
