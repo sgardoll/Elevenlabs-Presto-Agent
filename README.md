@@ -49,8 +49,8 @@ The "controller" running on a **Pimoroni Presto**.
 
 ### 1. Clone & Install Server
 ```bash
-git clone https://github.com/your-username/elevenlabs-agent.git
-cd elevenlabs-agent
+git clone https://github.com/sgardoll/Elevenlabs-Presto-Agent.git
+cd Elevenlabs-Presto-Agent
 npm install
 ```
 
